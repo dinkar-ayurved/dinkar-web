@@ -1,92 +1,84 @@
-# Auth API – Frontend Integration Guide
+/**
+ * API Integration Guide – Ayurvedic E-Commerce
+ *
+ * This file documents all backend APIs for frontend integration.
+ * Backend contract is stable — frontend should rely on this.
+ */
 
-Base URL (local): `http://localhost:5000`
+# 📘 API Integration Guide – Ayurvedic E-Commerce
 
----
+Base URL (Local):
+http://localhost:5000
 
-## 1️⃣ Registration (User / Admin)
+Auth Method:
+JWT (Bearer Token)
 
-### ➤ Register
+Authorization Header:
+Authorization: Bearer <TOKEN>
 
-**POST** `/api/auth/register`
+==================================================
+🔐 1️⃣ Authentication APIs
+==================================================
 
-Creates a new account and sends an OTP to email for verification.
+These APIs are common for Users and Admins.
+Admin is identified by role === "admin".
 
-**Request Body**
+--------------------------------------------------
+➤ Register (User / Admin)
+--------------------------------------------------
 
-```json
+POST /api/auth/register
+
+Request Body:
 {
   "name": "Test User",
   "email": "user@email.com",
   "password": "123456"
 }
-```
 
-**Success Response**
-
-```json
+Success Response:
 {
   "message": "Registered successfully. Please verify email via OTP."
 }
-```
 
-**Notes for Frontend**
+Notes:
+- Redirect to OTP verification screen
+- Login is blocked until email is verified
 
-* After this call, redirect user to **OTP verification screen**
-* Login is NOT allowed until email is verified
+--------------------------------------------------
+➤ Verify Email (OTP)
+--------------------------------------------------
 
----
+POST /api/auth/verify-email
 
-### ➤ Verify Email (OTP)
-
-**POST** `/api/auth/verify-email`
-
-Verifies user email using OTP.
-
-**Request Body**
-
-```json
+Request Body:
 {
   "email": "user@email.com",
   "otp": "123456"
 }
-```
 
-**Success Response**
-
-```json
+Success Response:
 {
   "message": "Email verified successfully"
 }
-```
 
-**Error Cases**
+Errors:
+- Invalid OTP
+- OTP expired (5 minutes)
 
-* Invalid OTP
-* Expired OTP
+--------------------------------------------------
+➤ Login
+--------------------------------------------------
 
----
+POST /api/auth/login
 
-## 2️⃣ Login
-
-### ➤ Login (Password-based)
-
-**POST** `/api/auth/login`
-
-Logs in verified users and returns JWT token.
-
-**Request Body**
-
-```json
+Request Body:
 {
   "email": "user@email.com",
   "password": "123456"
 }
-```
 
-**Success Response**
-
-```json
+Success Response:
 {
   "token": "JWT_TOKEN",
   "user": {
@@ -96,100 +88,176 @@ Logs in verified users and returns JWT token.
     "role": "user" | "admin"
   }
 }
-```
 
-**Important Frontend Rules**
+Frontend Rules:
+- Store token in localStorage or cookie
+- Send token in Authorization header
+- Redirect:
+  - Admin → /admin
+  - User → /
 
-* Store token in **localStorage** or **cookie**
-* Send token in header for protected APIs:
+--------------------------------------------------
+➤ Forgot Password (Send OTP)
+--------------------------------------------------
 
-```
-Authorization: Bearer <token>
-```
+POST /api/auth/forgot-password
 
-**Error Cases**
-
-* Invalid credentials
-* Email not verified
-
----
-
-## 3️⃣ Forgot Password
-
-### ➤ Send Reset OTP
-
-**POST** `/api/auth/forgot-password`
-
-Sends OTP to email for password reset.
-
-**Request Body**
-
-```json
+Request Body:
 {
   "email": "user@email.com"
 }
-```
 
-**Response (Always same for security)**
-
-```json
+Response (always same):
 {
   "message": "If the email exists, OTP has been sent"
 }
-```
 
-**Frontend Note**
+--------------------------------------------------
+➤ Reset Password
+--------------------------------------------------
 
-* Always show success message (do not check if email exists)
+POST /api/auth/reset-password
 
----
-
-### ➤ Reset Password
-
-**POST** `/api/auth/reset-password`
-
-Resets password using OTP.
-
-**Request Body**
-
-```json
+Request Body:
 {
   "email": "user@email.com",
   "otp": "123456",
   "newPassword": "newpassword123"
 }
-```
 
-**Success Response**
-
-```json
+Success Response:
 {
   "message": "Password reset successful"
 }
-```
 
-**Frontend Flow**
+==================================================
+🛒 2️⃣ Cart APIs (USER ONLY)
+==================================================
 
-1. Forgot password → enter email
-2. Enter OTP + new password
-3. Redirect to login
+All Cart APIs require a USER token.
+Admin tokens are rejected.
 
----
+--------------------------------------------------
+➤ Get Cart
+--------------------------------------------------
 
-## 🔐 Auth Notes (IMPORTANT)
+GET /api/cart
 
-* Same APIs work for **users and admin**
-* Admin is identified by `role === "admin"` in login response
-* Frontend **must not assume admin access** — backend enforces it
-* OTP is valid for **5 minutes**
+Headers:
+Authorization: Bearer <USER_TOKEN>
 
----
+Success Response:
+{
+  "_id": "cart_id",
+  "items": [
+    {
+      "product": {
+        "_id": "product_id",
+        "name": "Product Name",
+        "price": 6000,
+        "images": [],
+        "stock": 100
+      },
+      "quantity": 1
+    }
+  ]
+}
 
-## ✅ Auth Status
+Notes:
+- Call on cart page load
+- If items.length === 0 → show "Cart is empty"
 
-✔ Registration
-✔ Email verification (OTP)
-✔ Login (JWT)
-✔ Forgot password
-✔ Reset password
+--------------------------------------------------
+➤ Add Item to Cart
+--------------------------------------------------
+
+POST /api/cart/add
+
+Request Body:
+{
+  "productId": "product_id",
+  "quantity": 1
+}
+
+Notes:
+- productId is MongoDB _id
+- If product already exists → quantity increases
+
+--------------------------------------------------
+➤ Update Cart Item Quantity
+--------------------------------------------------
+
+PUT /api/cart/update
+
+Request Body:
+{
+  "productId": "product_id",
+  "quantity": 3
+}
+
+--------------------------------------------------
+➤ Remove Item from Cart
+--------------------------------------------------
+
+DELETE /api/cart/remove/:productId
+
+Example:
+DELETE /api/cart/remove/6971d00c9fe4a65b76d23aa8
+
+==================================================
+📦 3️⃣ Order APIs (USER)
+==================================================
+
+--------------------------------------------------
+➤ Place Order (COD)
+--------------------------------------------------
+
+POST /api/orders
+
+Headers:
+Authorization: Bearer <USER_TOKEN>
+
+Request Body:
+(no body required)
+
+Success Response:
+{
+  "_id": "order_id",
+  "items": [
+    {
+      "name": "Product Name",
+      "price": 6000,
+      "quantity": 1,
+      "images": []
+    }
+  ],
+  "totalAmount": 6000,
+  "status": "placed",
+  "paymentMethod": "COD"
+}
+
+Notes:
+- Orders are created only from cart
+- Cart is cleared after order
+- Prices are calculated server-side
+
+==================================================
+🧠 Important Rules
+==================================================
+
+- Cart is DB-backed and persistent
+- Frontend must never calculate totals
+- Orders store product snapshot
+- JWT is mandatory for all protected routes
+
+==================================================
+✅ Backend Status
+==================================================
+
+✔ Auth (OTP + JWT)
+✔ Cart (Add / Update / Remove)
+✔ Orders (COD)
+✔ Admin Products
+✔ Secure pricing
+`;
 
